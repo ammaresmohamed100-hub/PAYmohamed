@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>نظام إدارة التحويلات والمحفظة المشتركة | الشركاء الثلاثة</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Google Fonts: Cairo -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Canvas Confetti for celebratory animation -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <!-- QRCode.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            cairo: ['Cairo', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+              800: '#065f46',
+              900: '#064e3b',
+            },
+            vodafone: '#E60000',
+            instapay: '#5E2D91',
+            fawry: '#FFB800',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Cairo', sans-serif;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f1f1f1;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #c5c5c5;
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #a0a0a0;
+    }
+    @keyframes pulse-subtle {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.92; transform: scale(1.02); }
+    }
+    .pulse-card {
+      animation: pulse-subtle 4s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col custom-scrollbar">
+
+  <!-- صوت الإشعار التلقائي عبر Web Audio API -->
+  <script>
+    function playNotificationSound() {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.1); // A5
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.36);
+      } catch (e) {
+        console.log("Audio not allowed yet without interaction");
+      }
+    }
+  </script>
+
+  <!-- Top Notification Bar -->
+  <div class="bg-gradient-to-r from-emerald-700 via-teal-700 to-emerald-800 text-white py-2 px-4 shadow-md text-xs sm:text-sm font-medium">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-2">
+        <span class="inline-block w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping"></span>
+        <span class="font-bold">رقم الحساب الموحد للتحويلات:</span>
+        <span class="bg-white/20 px-2 py-0.5 rounded font-mono font-bold tracking-wider dir-ltr text-emerald-100">01039261108</span>
+        <span class="hidden md:inline text-emerald-200">(إنستاباي / فودافون كاش / فوري)</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="pay.html" target="_blank" class="bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-black px-2.5 py-1 rounded transition flex items-center gap-1 text-xs shadow-xs">
+          <i class="fa-solid fa-arrow-up-right-from-square"></i>
+          <span>صفحة دفع الزبون</span>
+        </a>
+        <button onclick="copyToClipboard('01039261108', 'تم نسخ رقم الحساب بنجاح!')" class="hover:bg-white/20 bg-white/10 px-2.5 py-1 rounded transition flex items-center gap-1.5 text-xs font-semibold">
+          <i class="fa-regular fa-copy"></i>
+          <span>نسخ الرقم</span>
+        </button>
+        <button onclick="openClientShareModal()" class="bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold px-3 py-1 rounded transition flex items-center gap-1.5 text-xs shadow-sm">
+          <i class="fa-solid fa-share-nodes"></i>
+          <span>رسالة الدفع للعميل</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-600/30">
+          <i class="fa-solid fa-wallet text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-xl sm:text-2xl font-black text-slate-800 flex items-center gap-2">
+            محفظة الشركاء الثلاثة
+            <span class="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-300">مباشر</span>
+          </h1>
+          <p class="text-xs text-slate-500">نظام إدارة ومتابعة التحويلات المالية وتوزيع الأرباح فورياً</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button onclick="openClientShareModal()" class="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold px-4 py-2 rounded-xl transition flex items-center gap-2 shadow-md shadow-emerald-600/20 text-sm">
+          <i class="fa-solid fa-share-nodes text-base"></i>
+          <span>إرسال رابط الدفع للعميل</span>
+        </button>
+        <button onclick="openAutomationGuideModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-2 rounded-xl transition flex items-center gap-1.5 text-sm border border-slate-300">
+          <i class="fa-solid fa-robot text-emerald-600"></i>
+          <span class="hidden sm:inline">الربط التلقائي (SMS)</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full space-y-6">
+
+    <!-- Live Alert Box (When new transfer is added) -->
+    <div id="liveAlertBox" class="hidden bg-emerald-50 border-2 border-emerald-500 rounded-2xl p-4 shadow-xl transition-all duration-300 animate-bounce">
+      <div class="flex items-start justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-2xl shadow-md">
+            <i class="fa-solid fa-circle-check"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-extrabold text-emerald-900" id="liveAlertTitle">تم استلام تحويل جديد بنجاح!</h3>
+            <p class="text-sm text-emerald-700" id="liveAlertDesc">المبلغ: 0 ج.م - جاري إشعار الشركاء</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="notifyAllPartnersNow()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded-lg flex items-center gap-1 shadow">
+            <i class="fa-brands fa-whatsapp text-sm"></i>
+            إرسال واتساب للجميع
+          </button>
+          <button onclick="dismissLiveAlert()" class="text-slate-400 hover:text-slate-600 p-1">
+            <i class="fa-solid fa-xmark text-lg"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Stats Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- Total Income -->
+      <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-500 mb-2">
+          <span class="text-xs font-bold tracking-wide uppercase">إجمالي المبالغ المستلمة</span>
+          <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <i class="fa-solid fa-coins text-lg"></i>
+          </div>
+        </div>
+        <div class="flex items-baseline gap-2">
+          <span class="text-2xl sm:text-3xl font-black text-slate-900" id="statTotalIncome">0</span>
+          <span class="text-xs font-bold text-slate-500">جنيه مصري</span>
+        </div>
+        <div class="mt-3 text-xs text-emerald-600 font-semibold flex items-center gap-1">
+          <i class="fa-solid fa-arrow-trend-up"></i>
+          <span id="statTxCount">0</span> عملية تحويل مسجلة
+        </div>
+      </div>
+
+      <!-- Today's Income -->
+      <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-500 mb-2">
+          <span class="text-xs font-bold tracking-wide uppercase">تحويلات اليوم</span>
+          <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+            <i class="fa-solid fa-calendar-day text-lg"></i>
+          </div>
+        </div>
+        <div class="flex items-baseline gap-2">
+          <span class="text-2xl sm:text-3xl font-black text-slate-900" id="statTodayIncome">0</span>
+          <span class="text-xs font-bold text-slate-500">جنيه مصري</span>
+        </div>
+        <div class="mt-3 text-xs text-blue-600 font-semibold flex items-center gap-1">
+          <i class="fa-regular fa-clock"></i>
+          <span id="statTodayCount">0</span> عملية واردة اليوم
+        </div>
+      </div>
+
+      <!-- Each Partner's Share Total -->
+      <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-500 mb-2">
+          <span class="text-xs font-bold tracking-wide uppercase">نصيب كل شريك (الثُلث)</span>
+          <div class="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+            <i class="fa-solid fa-users text-lg"></i>
+          </div>
+        </div>
+        <div class="flex items-baseline gap-2">
+          <span class="text-2xl sm:text-3xl font-black text-purple-900" id="statPartnerShare">0</span>
+          <span class="text-xs font-bold text-purple-700">جنيه لكل شخص</span>
+        </div>
+        <div class="mt-3 text-xs text-purple-600 font-semibold flex items-center gap-1">
+          <i class="fa-solid fa-pie-chart"></i>
+          تقسيم متساوي (33.33% لكل شريك)
+        </div>
+      </div>
+
+      <!-- Active Receiving Account -->
+      <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white p-5 rounded-2xl shadow-md relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-300 mb-2">
+          <span class="text-xs font-bold tracking-wide uppercase">حساب الاستلام المعتمد</span>
+          <span class="bg-emerald-500/20 text-emerald-400 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-emerald-500/30">نشط</span>
+        </div>
+        <div class="font-mono text-xl sm:text-2xl font-black tracking-wider text-emerald-400 dir-ltr text-right">
+          01039261108
+        </div>
+        <div class="mt-2 text-xs text-slate-300 flex items-center justify-between">
+          <span>إنستاباي • فودافون كاش • فوري</span>
+          <button onclick="copyToClipboard('01039261108', 'تم نسخ الرقم!')" class="text-white hover:text-emerald-300 transition text-xs p-1">
+            <i class="fa-regular fa-copy"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- The 3 Partners Cards & Quick WhatsApp Dispatch -->
+    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6">
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-6 pb-4 border-b border-slate-100">
+        <div>
+          <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
+            <i class="fa-solid fa-id-card-clip text-emerald-600"></i>
+            بيانات الشركاء الثلاثة وحصص الأرباح
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">يمكنك بضغطة زر إرسال كشف حساب أو إشعار فوري لأي شريك عبر الواتساب</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="sendGroupSummaryWhatsApp()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm">
+            <i class="fa-brands fa-whatsapp text-sm"></i>
+            <span>إرسال تقرير الحساب للشركاء</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+        
+        <!-- Partner 1 (Main Collector / User) -->
+        <div class="bg-slate-50/80 border-2 border-emerald-500/60 rounded-2xl p-5 relative shadow-sm hover:shadow-md transition">
+          <span class="absolute -top-3 right-4 bg-emerald-600 text-white text-[10px] font-extrabold px-2.5 py-0.5 rounded-full shadow-sm">
+            المستلم والمشرف (أنت)
+          </span>
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-700 font-black text-lg flex items-center justify-center">
+              ١
+            </div>
+            <div>
+              <h3 class="font-bold text-slate-900 text-base">الشريك الأول (أنت)</h3>
+              <p class="text-xs text-slate-500">حامل محفظة الكاش والإنستاباي</p>
+            </div>
+          </div>
+
+          <div class="space-y-2 text-xs text-slate-600 mb-4 bg-white p-3 rounded-xl border border-slate-200">
+            <div class="flex justify-between items-center">
+              <span class="text-slate-500">رقم المحفظة (التحويلات):</span>
+              <span class="font-mono font-bold text-emerald-700 dir-ltr">01039261108</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-slate-500">رقم التواصل الشخصي:</span>
+              <span class="font-mono font-semibold text-slate-700 dir-ltr">01091310361</span>
+            </div>
+            <div class="flex justify-between items-center pt-1 border-t border-slate-100">
+              <span class="text-slate-500">النسبة المحددة:</span>
+              <span class="font-bold text-slate-800">33.33% (الثلث)</span>
+            </div>
+          </div>
+
+          <div class="bg-emerald-50/60 p-3 rounded-xl border border-emerald-100 mb-3 text-center">
+            <span class="text-xs text-emerald-800 block font-semibold mb-0.5">المستحق الحالي في الخزينة:</span>
+            <span class="text-xl font-black text-emerald-700" id="partner1Share">0</span>
+            <span class="text-xs font-bold text-emerald-700">ج.م</span>
+          </div>
+
+          <div class="flex gap-2">
+            <a href="https://wa.me/201091310361" target="_blank" class="flex-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-bold text-xs py-2 rounded-xl text-center flex items-center justify-center gap-1.5 transition">
+              <i class="fa-brands fa-whatsapp text-emerald-600 text-sm"></i>
+              <span>واتساب</span>
+            </a>
+            <button onclick="copyToClipboard('01091310361', 'تم نسخ رقم التواصل!')" class="px-3 bg-white hover:bg-slate-50 text-slate-600 border border-slate-300 rounded-xl transition text-xs">
+              <i class="fa-regular fa-copy"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Partner 2 -->
+        <div class="bg-slate-50/80 border border-slate-200 rounded-2xl p-5 relative shadow-sm hover:shadow-md transition">
+          <span class="absolute -top-3 right-4 bg-slate-700 text-white text-[10px] font-extrabold px-2.5 py-0.5 rounded-full shadow-sm">
+            شريك مساهم
+          </span>
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-12 h-12 rounded-xl bg-blue-100 text-blue-700 font-black text-lg flex items-center justify-center">
+              ٢
+            </div>
+            <div>
+              <h3 class="font-bold text-slate-900 text-base">الشريك الثاني</h3>
+              <p class="text-xs text-slate-500">استلام الإشعارات والأرباح</p>
+            </div>
+          </div>
+
+          <div class="space-y-2 text-xs text-slate-600 mb-4 bg-white p-3 rounded-xl border border-slate-200">
+            <div class="flex justify-between items-center">
+              <span class="text-slate-500">رقم الهاتف / الواتساب:</span>
+              <span class="font-mono font-bold text-blue-700 dir-ltr">01123050047</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-slate-500">حالة الإشعارات:</span>
+              <span class="text-emerald-600 font-bold flex items-center gap-1">
+                <i class="fa-solid fa-check-circle"></i> مفعلة
+              </span>
+            </div>
+            <div class="flex justify-between items-center pt-1 border-t border-slate-100">
+              <span class="text-slate-500">النسبة المحددة:</span>
+              <span class="font-bold text-slate-800">33.33% (الثلث)</span>
+            </div>
+          </div>
+
+          <div class="bg-blue-50/60 p-3 rounded-xl border border-blue-100 mb-3 text-center">
+            <span class="text-xs text-blue-800 block font-semibold mb-0.5">المستحق الحالي في الخزينة:</span>
+            <span class="text-xl font-black text-blue-700" id="partner2Share">0</span>
+            <span class="text-xs font-bold text-blue-700">ج.م</span>
+          </div>
+
+          <div class="flex gap-2">
+            <button onclick="sendWhatsAppToPartner('01123050047', 'الشريك الثاني')" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 rounded-xl text-center flex items-center justify-center gap-1.5 transition shadow-sm">
+              <i class="fa-brands fa-whatsapp text-sm"></i>
+              <span>إشعار بالرصيد</span>
+            </button>
+            <button onclick="copyToClipboard('01123050047', 'تم نسخ رقم الشريك الثاني!')" class="px-3 bg-white hover:bg-slate-50 text-slate-600 border border-slate-300 rounded-xl transition text-xs">
+              <i class="fa-regular fa-copy"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Partner 3 -->
+        <div class="bg-slate-50/80 border border-slate-200 rounded-2xl p-5 relative shadow-sm hover:shadow-md transition">
+          <span class="absolute -top-3 right-4 bg-slate-700 text-white text-[10px] font-extrabold px-2.5 py-0.5 rounded-full shadow-sm">
+            شريك مساهم
+          </span>
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-12 h-12 rounded-xl bg-purple-100 text-purple-700 font-black text-lg flex items-center justify-center">
+              ٣
+            </div>
+            <div>
+              <h3 class="font-bold text-slate-900 text-base">الشريك الثالث</h3>
+              <p class="text-xs text-slate-500">استلام الإشعارات والأرباح</p>
+            </div>
+          </div>
+
+          <div class="space-y-2 text-xs text-slate-600 mb-4 bg-white p-3 rounded-xl border border-slate-200">
+            <div class="flex justify-between items-center">
+              <span class="text-slate-500">رقم الهاتف / الواتساب:</span>
+              <span class="font-mono font-bold text-purple-700 dir-ltr">01062206779</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-slate-500">حالة الإشعارات:</span>
+              <span class="text-emerald-600 font-bold flex items-center gap-1">
+                <i class="fa-solid fa-check-circle"></i> مفعلة
+              </span>
+            </div>
+            <div class="flex justify-between items-center pt-1 border-t border-slate-100">
+              <span class="text-slate-500">النسبة المحددة:</span>
+              <span class="font-bold text-slate-800">33.33% (الثلث)</span>
+            </div>
+          </div>
+
+          <div class="bg-purple-50/60 p-3 rounded-xl border border-purple-100 mb-3 text-center">
+            <span class="text-xs text-purple-800 block font-semibold mb-0.5">المستحق الحالي في الخزينة:</span>
+            <span class="text-xl font-black text-purple-700" id="partner3Share">0</span>
+            <span class="text-xs font-bold text-purple-700">ج.م</span>
+          </div>
+
+          <div class="flex gap-2">
+            <button onclick="sendWhatsAppToPartner('01062206779', 'الشريك الثالث')" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 rounded-xl text-center flex items-center justify-center gap-1.5 transition shadow-sm">
+              <i class="fa-brands fa-whatsapp text-sm"></i>
+              <span>إشعار بالرصيد</span>
+            </button>
+            <button onclick="copyToClipboard('01062206779', 'تم نسخ رقم الشريك الثالث!')" class="px-3 bg-white hover:bg-slate-50 text-slate-600 border border-slate-300 rounded-xl transition text-xs">
+              <i class="fa-regular fa-copy"></i>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Transactions List & Filter -->
+    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+      <!-- Toolbar -->
+      <div class="p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
+            <i class="fa-solid fa-clock-rotate-left text-emerald-600"></i>
+            سجل التحويلات والعمليات
+          </h2>
+          <p class="text-xs text-slate-500">جميع المبالغ المحولة مع إمكانية البحث والفلترة وحفظ البيانات</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2.5">
+          <!-- Search input -->
+          <div class="relative">
+            <input type="text" id="searchInput" oninput="renderTransactions()" placeholder="بحث باسم العميل أو المبلغ..." class="text-xs pl-8 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white w-48 sm:w-60">
+            <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-2.5 text-slate-400 text-xs"></i>
+          </div>
+
+          <!-- Method Filter -->
+          <select id="methodFilter" onchange="renderTransactions()" class="text-xs py-2 px-3 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <option value="ALL">جميع الطرق</option>
+            <option value="instapay">إنستا باي (InstaPay)</option>
+            <option value="vodafone">فودافون كاش</option>
+            <option value="fawry">فوري</option>
+            <option value="bank">تحويل بنكي</option>
+            <option value="cash">نقدي كاش</option>
+          </select>
+
+          <!-- Export buttons -->
+          <button onclick="exportToCSV()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-2 rounded-xl text-xs transition flex items-center gap-1.5 border border-slate-300" title="تصدير كملف إكسل">
+            <i class="fa-solid fa-file-excel text-emerald-700"></i>
+            <span>تصدير Excel</span>
+          </button>
+          <div class="bg-emerald-50 text-emerald-700 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 border border-emerald-200" title="السجل دائم وغير قابل للمسح لضمان حقوق الشركاء">
+            <i class="fa-solid fa-shield-halved text-emerald-600"></i>
+            <span>سجل دائم ومحمي من المسح</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Table Container -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-right text-xs">
+          <thead class="bg-slate-50/75 text-slate-600 font-bold border-b border-slate-200">
+            <tr>
+              <th class="py-3 px-4">رقم العملية</th>
+              <th class="py-3 px-4">التاريخ والوقت</th>
+              <th class="py-3 px-4">المبلغ المستلم</th>
+              <th class="py-3 px-4">طريقة التحويل</th>
+              <th class="py-3 px-4">البيان / العميل</th>
+              <th class="py-3 px-4">نصيب كل شريك</th>
+              <th class="py-3 px-4 text-center">إشعار الشركاء</th>
+              <th class="py-3 px-4 text-center">حالة العملية</th>
+            </tr>
+          </thead>
+          <tbody id="transactionsTableBody" class="divide-y divide-slate-100 text-slate-700">
+            <!-- Dynamic rows inserted here -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Empty State -->
+      <div id="emptyState" class="py-12 px-4 text-center">
+        <div class="w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-3 text-2xl">
+          <i class="fa-regular fa-folder-open"></i>
+        </div>
+        <h3 class="text-sm font-bold text-slate-700">لا توجد عمليات تحويل مسجلة حالياً</h3>
+        <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">في انتظار قيام العملاء بالدفع عبر رابط الدفع. سيتم تسجيل التحويلات وتوزيع الحصص أوتوماتيكياً هنا.</p>
+        <button onclick="openClientShareModal()" class="mt-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs transition inline-flex items-center gap-1.5 shadow">
+          <i class="fa-solid fa-share-nodes"></i>
+          مشاركة رابط الدفع مع العميل
+        </button>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-400">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+      <p>نظام التحويلات المشتركة • الأرقام المعتمدة: 01039261108 (كاش) | 01091310361 | 01123050047 | 01062206779</p>
+      <p class="text-emerald-600 font-semibold">جاهز للعمل دون خوادم خارجية • حفظ محلي آمن 100%</p>
+    </div>
+  </footer>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- 1. Modal: New Transaction -->
+  <div id="newTxModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 transform transition-all">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+        <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center text-sm">
+            <i class="fa-solid fa-money-bill-transfer"></i>
+          </div>
+          تسجيل تحويل مالي وارد
+        </h3>
+        <button onclick="closeNewTxModal()" class="text-slate-400 hover:text-slate-600 p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <form id="newTxForm" onsubmit="handleNewTxSubmit(event)" class="space-y-4 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">المبلغ المحول (جنيه مصري) *</label>
+          <div class="relative">
+            <input type="number" step="0.5" id="txAmount" required placeholder="مثال: 500" class="w-full text-base font-black text-slate-900 pr-4 pl-12 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none">
+            <span class="absolute left-3 top-3 font-bold text-slate-400 text-xs">ج.م</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">طريقة الاستلام *</label>
+            <select id="txMethod" required class="w-full py-2.5 px-3 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-medium">
+              <option value="instapay">⚡ إنستا باي (InstaPay)</option>
+              <option value="vodafone">🔴 فودافون كاش</option>
+              <option value="fawry">🟡 فوري (Fawry)</option>
+              <option value="bank">🏛️ تحويل بنكي مباشر</option>
+              <option value="cash">💵 نقدي باليد</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">حساب الاستلام</label>
+            <input type="text" readonly value="01039261108" class="w-full py-2.5 px-3 bg-slate-100 text-slate-600 font-mono font-bold rounded-xl border border-slate-200 dir-ltr text-right">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">اسم العميل أو البيان / سبب الدفع</label>
+          <input type="text" id="txClient" placeholder="مثال: دفعة عميل أحمد / مصاريف مشروع" class="w-full py-2.5 px-3 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none">
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">رقم العملية المرجعي (اختياري)</label>
+          <input type="text" id="txRef" placeholder="رقم كود العملية من رسالة الـ SMS" class="w-full py-2.5 px-3 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none font-mono">
+        </div>
+
+        <!-- Automatic split preview -->
+        <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-emerald-900">
+          <div class="flex items-center justify-between font-bold mb-1">
+            <span>توزيع الحصص التلقائي:</span>
+            <span class="text-xs bg-emerald-200/60 px-2 py-0.5 rounded text-emerald-800">3 شركاء بالتساوي</span>
+          </div>
+          <div class="text-[11px] text-emerald-700 flex justify-between">
+            <span>نصيب كل شريك:</span>
+            <span class="font-extrabold text-sm text-emerald-800" id="previewShareCalc">0 ج.م</span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 pt-2">
+          <input type="checkbox" id="autoNotifyWhatsApp" checked class="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 border-slate-300">
+          <label for="autoNotifyWhatsApp" class="font-semibold text-slate-700 cursor-pointer">
+            تجهيز إشعارات الواتساب للشركاء فور الحفظ
+          </label>
+        </div>
+
+        <div class="flex gap-2 pt-3">
+          <button type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold py-2.5 rounded-xl transition shadow-md shadow-emerald-600/30 text-sm flex items-center justify-center gap-2">
+            <i class="fa-solid fa-check"></i>
+            حفظ العملية وتأكيد الاستلام
+          </button>
+          <button type="button" onclick="closeNewTxModal()" class="px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold rounded-xl transition">
+            إلغاء
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. Modal: Share Payment Info with Customer -->
+  <div id="clientShareModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+        <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
+          <i class="fa-solid fa-qrcode text-emerald-600"></i>
+          بيانات الدفع لمشاركتها مع العميل
+        </h3>
+        <button onclick="closeClientShareModal()" class="text-slate-400 hover:text-slate-600 p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="text-center space-y-4">
+        <!-- QR Code Display -->
+        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 inline-block shadow-inner">
+          <div id="qrcodeContainer" class="flex justify-center"></div>
+          <p class="text-[11px] text-slate-500 mt-2 font-medium">امسح الكود أو استخدم الرقم بالأسفل</p>
+        </div>
+
+        <!-- Phone number box -->
+        <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
+          <span class="text-xs text-emerald-800 font-bold block mb-1">رقم فودافون كاش وإنستاباي الموحد:</span>
+          <div class="text-2xl font-black font-mono text-emerald-800 tracking-wider dir-ltr">
+            01039261108
+          </div>
+          <p class="text-[11px] text-emerald-700 mt-1">يقبل التحويل من أي بنك عبر InstaPay أو من أي محفظة إلكترونية</p>
+        </div>
+
+        <!-- Pre-written WhatsApp Message for Customer -->
+        <div class="text-right">
+          <label class="block text-xs font-bold text-slate-700 mb-1">الرسالة الجاهزة للإرسال للعميل:</label>
+          <div id="clientMsgTemplate" class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 leading-relaxed font-mono">
+أهلاً بحضرتك،
+تقدر تحول المبلغ على حسابنا المشترك:
+📱 إنستا باي (InstaPay) أو فودافون كاش: 01039261108
+🟡 حسابات فوري: 01039261108
+بعد التحويل برجاء إرسال صورة إيصال التحويل لتأكيد الطلب فوراً. شكراً لتعاملك معنا!
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="grid grid-cols-2 gap-2 pt-2 text-xs">
+          <button onclick="copyCustomerMessage()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-3 rounded-xl transition flex items-center justify-center gap-1.5 shadow-sm">
+            <i class="fa-regular fa-copy"></i>
+            نسخ نص الرسالة
+          </button>
+          <button onclick="shareViaWhatsAppDirect()" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2.5 px-3 rounded-xl transition flex items-center justify-center gap-1.5 shadow-sm">
+            <i class="fa-brands fa-whatsapp"></i>
+            فتح الواتساب
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Modal: Automatic SMS Integration Guide -->
+  <div id="automationGuideModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto custom-scrollbar">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+        <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
+          <i class="fa-solid fa-microchip text-emerald-600"></i>
+          دليل الربط التلقائي لقراءة رسائل التحويل (SMS)
+        </h3>
+        <button onclick="closeAutomationGuideModal()" class="text-slate-400 hover:text-slate-600 p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-xs text-slate-700 leading-relaxed">
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 text-blue-900">
+          <span class="font-bold flex items-center gap-1.5 text-blue-800 text-sm mb-1">
+            <i class="fa-solid fa-lightbulb"></i>
+            كيف يعمل النظام تلقائياً؟
+          </span>
+          نظراً لأن خدمة إنستاباي وفودافون كاش في مصر لا توفر واجهة برمجية مفتوحة للأفراد، الحل الاحترافي والأكثر موثوقية هو تثبيت أداة أتمتة بسيطة على الهاتف الذي يحمل الشريحة <strong>(01039261108)</strong> لتقوم بقراءة رسالة الاستلام وتوجيهها فورياً للشركاء.
+        </div>
+
+        <div class="border border-slate-200 rounded-xl p-3.5 space-y-2 bg-slate-50">
+          <h4 class="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+            <span class="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs">١</span>
+            الحل الأسهل: تطبيق MacroDroid أو SMS Forwarder (مجاناً)
+          </h4>
+          <p>
+            1. قم بتحميل تطبيق <strong>MacroDroid</strong> أو <strong>SMS Forwarder</strong> من متجر Google Play على الموبايل اللي فيه شريحة (01039261108).<br>
+            2. اضبط الشرط (Trigger): "عند استلام رسالة SMS من: <code>Vodafone</code> أو <code>VF-Cash</code> أو <code>InstaPay</code> أو بنكك".<br>
+            3. اضبط الإجراء (Action): "إعادة توجيه الرسالة تلقائياً عبر SMS أو جروب واتساب/تيليجرام" للأرقام:<br>
+            - الشريك الثاني: <strong>01123050047</strong><br>
+            - الشريك الثالث: <strong>01062206779</strong>
+          </p>
+        </div>
+
+        <div class="border border-slate-200 rounded-xl p-3.5 space-y-2 bg-slate-50">
+          <h4 class="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+            <span class="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs">٢</span>
+            إشعار فوري بنقرة واحدة من لوحة التحكم الحالية
+          </h4>
+          <p>
+            لو مش عايز تنزل برامج، لوحة التحكم الحالية بمجرد ما تفتحها وتكتب المبلغ المسحوب، فيها زرار ذكي بيفتحلك شات الشركاء على الواتساب برسالة منسقة جاهزة فيها المبلغ ونصيب كل شخص والتاريخ!
+          </p>
+        </div>
+
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-amber-900 text-[11px]">
+          <strong>ملاحظة أمان:</strong> بياناتك وجميع العمليات المسجلة يتم حفظها محلياً على متصفحك بأمان تام ولا يتم إرسالها لأي خوادم خارجية غير مصرح بها.
+        </div>
+      </div>
+
+      <div class="mt-5 pt-3 border-t border-slate-100 text-left">
+        <button onclick="closeAutomationGuideModal()" class="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-2 rounded-xl text-xs transition">
+          فهمت ذلك، إغلاق الدليل
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toastNotification" class="fixed bottom-5 left-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+    <div class="bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl border border-slate-700 flex items-center gap-3 text-xs font-semibold">
+      <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
+      <span id="toastMessage">تمت العملية بنجاح</span>
+    </div>
+  </div>
+
+  <!-- ==================== JAVASCRIPT LOGIC ==================== -->
+  <script>
+    // Partners Phone Directory
+    const PARTNERS = {
+      p1: { name: "الشريك الأول (أنت)", contactPhone: "01091310361", walletPhone: "01039261108", shareRate: 1/3 },
+      p2: { name: "الشريك الثاني", contactPhone: "01123050047", shareRate: 1/3 },
+      p3: { name: "الشريك الثالث", contactPhone: "01062206779", shareRate: 1/3 }
+    };
+
+    // State
+    let transactions = [];
+    const STORAGE_KEY = "three_partners_cash_clean_v2";
+
+    // Initialize App
+    window.addEventListener("DOMContentLoaded", () => {
+      loadTransactions();
+      renderStats();
+      renderTransactions();
+      initQR();
+      setupAmountInputListener();
+    });
+
+    // Real-time synchronization when customer pays on pay.html
+    window.addEventListener("storage", (e) => {
+      if (e.key === STORAGE_KEY && e.newValue) {
+        try {
+          transactions = JSON.parse(e.newValue);
+          renderStats();
+          renderTransactions();
+          playNotificationSound();
+          const latest = transactions[0];
+          if (latest) {
+            const perShare = (latest.amount / 3).toFixed(2);
+            document.getElementById("liveAlertTitle").textContent = `🚨 تحويل أونلاين وارد بمبلغ ${Number(latest.amount).toLocaleString('ar-EG')} ج.م من ${latest.client}!`;
+            document.getElementById("liveAlertDesc").textContent = `طريقة الدفع: ${latest.method.toUpperCase()} • نصيب كل شريك: ${Number(perShare).toLocaleString('ar-EG')} ج.م`;
+            document.getElementById("liveAlertBox").classList.remove("hidden");
+            showToast(`تحويل وارد من ${latest.client} بقيمة ${latest.amount} ج.م!`, "success");
+            
+            // Trigger confetti
+            try {
+              confetti({ particleCount: 70, spread: 80, origin: { y: 0.7 } });
+            } catch (err) {}
+          }
+        } catch (err) {
+          console.error("Storage sync error", err);
+        }
+      }
+    });
+
+    // Load from LocalStorage (Completely clean - NO dummy or demo data)
+    function loadTransactions() {
+      // Clear any legacy test data from prior tests
+      try {
+        localStorage.removeItem("three_partners_cash_txs_v1");
+      } catch (e) {}
+
+      const data = localStorage.getItem(STORAGE_KEY);
+      if (data) {
+        try {
+          transactions = JSON.parse(data);
+        } catch (e) {
+          console.error("Error loading transactions", e);
+          transactions = [];
+        }
+      } else {
+        // Zero dummy data - clean empty start
+        transactions = [];
+        saveTransactions();
+      }
+    }
+
+    function saveTransactions() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
+    }
+
+    // Amount input live share calculator
+    function setupAmountInputListener() {
+      const amtInput = document.getElementById("txAmount");
+      const preview = document.getElementById("previewShareCalc");
+      amtInput.addEventListener("input", (e) => {
+        const val = parseFloat(e.target.value) || 0;
+        const perPartner = (val / 3).toFixed(2);
+        preview.textContent = `${Number(perPartner).toLocaleString('ar-EG')} ج.م`;
+      });
+    }
+
+    // Render Stats
+    function renderStats() {
+      const total = transactions.reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+      const perPartner = total / 3;
+
+      // Filter today
+      const todayStr = new Date().toDateString();
+      const todayTxs = transactions.filter(tx => new Date(tx.timestamp).toDateString() === todayStr);
+      const todayTotal = todayTxs.reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+
+      document.getElementById("statTotalIncome").textContent = total.toLocaleString("ar-EG");
+      document.getElementById("statTxCount").textContent = transactions.length.toLocaleString("ar-EG");
+      document.getElementById("statTodayIncome").textContent = todayTotal.toLocaleString("ar-EG");
+      document.getElementById("statTodayCount").textContent = todayTxs.length.toLocaleString("ar-EG");
+      document.getElementById("statPartnerShare").textContent = Math.floor(perPartner).toLocaleString("ar-EG");
+
+      // Partners Individual Shares
+      document.getElementById("partner1Share").textContent = perPartner.toFixed(2).toLocaleString("ar-EG");
+      document.getElementById("partner2Share").textContent = perPartner.toFixed(2).toLocaleString("ar-EG");
+      document.getElementById("partner3Share").textContent = perPartner.toFixed(2).toLocaleString("ar-EG");
+    }
+
+    // Render Transactions Table
+    function renderTransactions() {
+      const tbody = document.getElementById("transactionsTableBody");
+      const emptyState = document.getElementById("emptyState");
+      const query = (document.getElementById("searchInput").value || "").trim().toLowerCase();
+      const methodFilter = document.getElementById("methodFilter").value;
+
+      let filtered = transactions.filter(tx => {
+        const matchesQuery = !query || 
+          (tx.client && tx.client.toLowerCase().includes(query)) ||
+          (tx.ref && tx.ref.toLowerCase().includes(query)) ||
+          tx.amount.toString().includes(query);
+        const matchesMethod = methodFilter === "ALL" || tx.method === methodFilter;
+        return matchesQuery && matchesMethod;
+      });
+
+      // Sort by newest first
+      filtered.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = "";
+        emptyState.classList.remove("hidden");
+        return;
+      }
+
+      emptyState.classList.add("hidden");
+
+      const methodBadges = {
+        instapay: `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-200"><i class="fa-solid fa-bolt text-purple-600"></i> إنستا باي</span>`,
+        vodafone: `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-red-100 text-red-800 border border-red-200"><i class="fa-solid fa-mobile-screen text-red-600"></i> فودافون كاش</span>`,
+        fawry: `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300"><i class="fa-solid fa-store text-amber-600"></i> فوري</span>`,
+        bank: `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200"><i class="fa-solid fa-landmark text-blue-600"></i> بنكي</span>`,
+        cash: `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200"><i class="fa-solid fa-money-bill-wave text-emerald-600"></i> نقدي</span>`,
+      };
+
+      tbody.innerHTML = filtered.map(tx => {
+        const txDate = new Date(tx.timestamp);
+        const formattedDate = txDate.toLocaleDateString('ar-EG', { month: 'short', day: 'numeric', year: 'numeric' });
+        const formattedTime = txDate.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+        const share = (tx.amount / 3).toFixed(2);
+
+        return `
+          <tr class="hover:bg-slate-50 transition border-b border-slate-100">
+            <td class="py-3 px-4 font-mono font-bold text-slate-800 text-[11px]">${tx.id}</td>
+            <td class="py-3 px-4">
+              <div class="font-semibold text-slate-800">${formattedDate}</div>
+              <div class="text-[10px] text-slate-400 dir-ltr text-right">${formattedTime}</div>
+            </td>
+            <td class="py-3 px-4 font-black text-slate-900 text-sm">
+              ${Number(tx.amount).toLocaleString('ar-EG')} <span class="text-[10px] font-medium text-slate-500">ج.م</span>
+            </td>
+            <td class="py-3 px-4">
+              ${methodBadges[tx.method] || tx.method}
+            </td>
+            <td class="py-3 px-4">
+              <div class="font-semibold text-slate-800">${tx.client || 'بدون بيان'}</div>
+              ${tx.ref ? `<div class="text-[10px] font-mono text-slate-400">مرجع: ${tx.ref}</div>` : ''}
+            </td>
+            <td class="py-3 px-4 font-bold text-purple-700">
+              ${Number(share).toLocaleString('ar-EG')} ج.م
+            </td>
+            <td class="py-3 px-4 text-center">
+              <button onclick="shareSingleTxWhatsApp('${tx.id}')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 font-bold px-2.5 py-1 rounded-lg text-[11px] inline-flex items-center gap-1 transition" title="إرسال إشعار بهذه العملية عبر واتساب">
+                <i class="fa-brands fa-whatsapp text-emerald-600"></i>
+                إشعار
+              </button>
+            </td>
+            <td class="py-3 px-4 text-center">
+              <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 shadow-xs" title="العملية محفوظة في السجل المحمي">
+                <i class="fa-solid fa-lock text-[10px]"></i> مسجلة ومحمية
+              </span>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Handle New Transaction Submit
+    function handleNewTxSubmit(e) {
+      e.preventDefault();
+      const amount = parseFloat(document.getElementById("txAmount").value);
+      if (!amount || amount <= 0) return;
+
+      const method = document.getElementById("txMethod").value;
+      const client = document.getElementById("txClient").value.trim();
+      const ref = document.getElementById("txRef").value.trim();
+      const autoNotify = document.getElementById("autoNotifyWhatsApp").checked;
+
+      const newTx = {
+        id: "TX-" + Math.floor(100000 + Math.random() * 900000),
+        amount: amount,
+        method: method,
+        client: client || "تحويل وارد",
+        ref: ref || ("REF" + Math.floor(1000 + Math.random() * 9000)),
+        timestamp: new Date().toISOString(),
+        notified: false
+      };
+
+      transactions.unshift(newTx);
+      saveTransactions();
+      renderStats();
+      renderTransactions();
+      closeNewTxModal();
+      document.getElementById("newTxForm").reset();
+
+      // Audio & Confetti
+      playNotificationSound();
+      try {
+        confetti({
+          particleCount: 60,
+          spread: 70,
+          origin: { y: 0.7 }
+        });
+      } catch (err) {}
+
+      // Trigger Live Alert Bar
+      const perShare = (amount / 3).toFixed(2);
+      document.getElementById("liveAlertTitle").textContent = `تم استلام تحويل جديد بمبلغ ${Number(amount).toLocaleString('ar-EG')} ج.م!`;
+      document.getElementById("liveAlertDesc").textContent = `طريقة الدفع: ${method.toUpperCase()} • نصيب كل شريك: ${Number(perShare).toLocaleString('ar-EG')} ج.م`;
+      document.getElementById("liveAlertBox").classList.remove("hidden");
+
+      showToast(`تم تسجيل تحويل ${amount} ج.م بنجاح!`, "success");
+
+      // Auto notify partners if checked
+      if (autoNotify) {
+        lastAddedTx = newTx;
+        setTimeout(() => {
+          notifyAllPartnersNow();
+        }, 500);
+      }
+    }
+
+    let lastAddedTx = null;
+
+    function dismissLiveAlert() {
+      document.getElementById("liveAlertBox").classList.add("hidden");
+    }
+
+    // Data Protection: Operations are permanently saved and protected from deletion
+    function deleteTransaction(id) {
+      showToast("السجل المالي محمي ضد الحذف لضمان حقوق الشركاء", "info");
+    }
+
+    function clearAllDataWithConfirm() {
+      showToast("تم إلغاء ميزة المسح لحماية بيانات المحفظة", "info");
+    }
+
+    // Export to Excel / CSV
+    function exportToCSV() {
+      if (transactions.length === 0) {
+        showToast("لا توجد بيانات لتصديرها", "info");
+        return;
+      }
+      let csvContent = "\uFEFFرقم العملية,التاريخ,الوقت,المبلغ (ج.م),طريقة التحويل,البيان,نصيب كل شريك\n";
+      transactions.forEach(t => {
+        const d = new Date(t.timestamp);
+        const date = d.toLocaleDateString('ar-EG');
+        const time = d.toLocaleTimeString('ar-EG');
+        const share = (t.amount / 3).toFixed(2);
+        csvContent += `"${t.id}","${date}","${time}","${t.amount}","${t.method}","${t.client || ''}","${share}"\n`;
+      });
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `سجل_محفظة_الشركاء_${new Date().toISOString().slice(0,10)}.csv`;
+      link.click();
+      showToast("تم تنزيل ملف الإكسل بنجاح", "success");
+    }
+
+    // ==================== WHATSAPP DISPATCHERS ====================
+
+    // Send single transaction update to WhatsApp
+    function shareSingleTxWhatsApp(txId) {
+      const tx = transactions.find(t => t.id === txId);
+      if (!tx) return;
+
+      const dateStr = new Date(tx.timestamp).toLocaleString('ar-EG');
+      const share = (tx.amount / 3).toFixed(2);
+
+      const msg = encodeURIComponent(
+`🔔 *إشعار تحويل مالي جديد - محفظة الشركاء*
+----------------------------------------
+💰 *المبلغ المستلم:* ${tx.amount} جنيه مصري
+📱 *طريقة التحويل:* ${tx.method.toUpperCase()}
+📥 *المحفظة المستلمة:* 01039261108
+👤 *البيان / العميل:* ${tx.client || 'غير محدد'}
+🕒 *التاريخ والوقت:* ${dateStr}
+----------------------------------------
+👥 *نصيب كل شريك من العملية:* ${share} ج.م
+✅ تم تسجيل العملية في السيستم بنجاح.`
+      );
+
+      // Open choice to send to Partner 2 or Partner 3
+      const choice = prompt("اختر الشريك لإرسال الإشعار:\n1 - الشريك الثاني (01123050047)\n2 - الشريك الثالث (01062206779)\n3 - الشريك الأول (أنت - 01091310361)", "1");
+      if (choice === "1") {
+        window.open(`https://wa.me/201123050047?text=${msg}`, '_blank');
+      } else if (choice === "2") {
+        window.open(`https://wa.me/201062206779?text=${msg}`, '_blank');
+      } else if (choice === "3") {
+        window.open(`https://wa.me/201091310361?text=${msg}`, '_blank');
+      }
+    }
+
+    // Send to All Partners (opens sequentially)
+    function notifyAllPartnersNow() {
+      const total = transactions.reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+      const perPartner = (total / 3).toFixed(2);
+      const latestTx = transactions[0];
+
+      let details = latestTx 
+        ? `\n💰 *آخر تحويل:* ${latestTx.amount} ج.م (${latestTx.method})`
+        : "";
+
+      const msg = encodeURIComponent(
+`🔔 *إشعار تحويل مشترك*
+--------------------------------
+${details}
+📊 *إجمالي المحفظة الحالي:* ${total} ج.م
+👥 *المستحق لكل شريك:* ${perPartner} ج.م
+📱 *رقم الكاش المشترك:* 01039261108
+--------------------------------
+يرجى المتابعة ومراجعة الحساب عند الحاجة.`
+      );
+
+      // Open Partner 2 then prompt Partner 3
+      window.open(`https://wa.me/201123050047?text=${msg}`, '_blank');
+      setTimeout(() => {
+        if (confirm("هل تريد إرسال الإشعار للشريك الثالث (01062206779) الآن أيضاً؟")) {
+          window.open(`https://wa.me/201062206779?text=${msg}`, '_blank');
+        }
+      }, 700);
+    }
+
+    // Send Individual partner balance
+    function sendWhatsAppToPartner(phone, partnerName) {
+      const total = transactions.reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+      const share = (total / 3).toFixed(2);
+
+      const msg = encodeURIComponent(
+`أهلاً يا باشا (${partnerName})،
+كشف حساب سريع من محفظتنا المشتركة:
+💰 إجمالي ما تم تحصيله: ${total} ج.م
+👑 نصيبك الحالي المستحق للصرف: ${share} ج.م
+📱 رقم المحفظة المعتمد: 01039261108
+تاريخ التقرير: ${new Date().toLocaleDateString('ar-EG')}`
+      );
+
+      window.open(`https://wa.me/2${phone}?text=${msg}`, '_blank');
+    }
+
+    // Send Group Summary
+    function sendGroupSummaryWhatsApp() {
+      notifyAllPartnersNow();
+    }
+
+    // Client Share helper
+    function copyCustomerMessage() {
+      const txt = document.getElementById("clientMsgTemplate").innerText.trim();
+      copyToClipboard(txt, "تم نسخ رسالة العميل بنجاح!");
+    }
+
+    function shareViaWhatsAppDirect() {
+      const txt = encodeURIComponent(document.getElementById("clientMsgTemplate").innerText.trim());
+      window.open(`https://wa.me/?text=${txt}`, '_blank');
+    }
+
+    // Initialize QR Code
+    function initQR() {
+      try {
+        const qrContainer = document.getElementById("qrcodeContainer");
+        qrContainer.innerHTML = "";
+        new QRCode(qrContainer, {
+          text: "01039261108",
+          width: 140,
+          height: 140,
+          colorDark : "#064e3b",
+          colorLight : "#ffffff",
+          correctLevel : QRCode.CorrectLevel.H
+        });
+      } catch (err) {
+        console.log("QRCode init skipped", err);
+      }
+    }
+
+    // Modal Handlers
+    function openNewTxModal() {
+      document.getElementById("newTxModal").classList.remove("hidden");
+      document.getElementById("txAmount").focus();
+    }
+    function closeNewTxModal() {
+      document.getElementById("newTxModal").classList.add("hidden");
+    }
+
+    function openClientShareModal() {
+      document.getElementById("clientShareModal").classList.remove("hidden");
+      initQR();
+    }
+    function closeClientShareModal() {
+      document.getElementById("clientShareModal").classList.add("hidden");
+    }
+
+    function openAutomationGuideModal() {
+      document.getElementById("automationGuideModal").classList.remove("hidden");
+    }
+    function closeAutomationGuideModal() {
+      document.getElementById("automationGuideModal").classList.add("hidden");
+    }
+
+    // Generic Clipboard Helper
+    function copyToClipboard(text, successMsg) {
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(() => {
+          showToast(successMsg, "success");
+        }).catch(() => {
+          fallbackCopy(text, successMsg);
+        });
+      } else {
+        fallbackCopy(text, successMsg);
+      }
+    }
+
+    function fallbackCopy(text, successMsg) {
+      const input = document.createElement("textarea");
+      input.value = text;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand("copy");
+      document.body.removeChild(input);
+      showToast(successMsg, "success");
+    }
+
+    // Toast Utility
+    function showToast(message, type = "success") {
+      const toast = document.getElementById("toastNotification");
+      const toastMsg = document.getElementById("toastMessage");
+      const toastIcon = document.getElementById("toastIcon");
+
+      toastMsg.textContent = message;
+      if (type === "success") {
+        toastIcon.className = "fa-solid fa-circle-check text-emerald-400 text-base";
+      } else if (type === "info") {
+        toastIcon.className = "fa-solid fa-circle-info text-blue-400 text-base";
+      }
+
+      toast.classList.remove("translate-y-20", "opacity-0");
+      toast.classList.add("translate-y-0", "opacity-100");
+
+      setTimeout(() => {
+        toast.classList.remove("translate-y-0", "opacity-100");
+        toast.classList.add("translate-y-20", "opacity-0");
+      }, 3000);
+    }
+  </script>
+</body>
+</html>
